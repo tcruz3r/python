@@ -1,0 +1,73 @@
+from openpyxl import Workbook
+from pyral import Rally
+
+# Provide your Rally details
+RALLY_SERVER = 'rally1.rallydev.com'
+RALLY_API_KEY= "_wzD0eJHIR9KPr2XwBv5SX7Fko3EUgmlFZ7QNCxfWQ"
+RALLY_WORKSPACE= "CVS Health"
+RALLY_PROJECT = 'Outputs & Data Transformation'
+# Define the output Excel file path
+OUTPUT_EXCEL_FILE = r'C:\Automation\TeamRally_user_stories_filtered_by_owner.xlsx'  # Full path to the Excel file
+
+# Filter by owner
+FILTER_OWNER = 'Tessa Cruz'  # Replace with the owner's name to filter by
+
+try:
+    # Initialize Rally connection using API key
+    rally = Rally(RALLY_SERVER, apikey=RALLY_API_KEY, workspace=RALLY_WORKSPACE, project=RALLY_PROJECT)
+    print(f"Connected to Rally successfully for project '{RALLY_PROJECT}'!")
+
+    # Fetch User Stories under the specified project
+    user_stories = rally.get('HierarchicalRequirement', fetch="FormattedID,Name,Owner,ScheduleState")
+
+    # Store user stories in a list for filtering, sorting, and exporting
+    user_story_list = []
+    for user_story in user_stories:
+        owner = user_story.Owner.DisplayName if hasattr(user_story, 'Owner') and user_story.Owner else "No Owner"
+        schedule_state = user_story.ScheduleState if hasattr(user_story, 'ScheduleState') else "No State"
+        
+        # Ignore user stories with ScheduleState of "Accepted"
+        if owner == FILTER_OWNER and schedule_state != "Accepted":
+            user_story_list.append({
+                "FormattedID": user_story.FormattedID,
+                "Name": user_story.Name,
+                "ScheduleState": schedule_state,
+                "Owner": owner
+            })
+
+    # Sort the user stories by Schedule State (alphabetically)
+    sorted_user_stories = sorted(user_story_list, key=lambda x: x["ScheduleState"])
+
+    # Print sorted and filtered user stories
+    print(f"Filtered and Sorted User Stories under Project '{RALLY_PROJECT}' for Owner '{FILTER_OWNER}':")
+    for user_story in sorted_user_stories:
+        print(f"ID: {user_story['FormattedID']}, "
+              f"Name: {user_story['Name']}, "
+              f"Schedule State: {user_story['ScheduleState']}, "
+              f"Owner: {user_story['Owner']}")
+
+    # Export results to an Excel file
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "User Stories"
+
+    # Write headers
+    headers = ["FormattedID", "Name", "ScheduleState", "Owner"]
+    sheet.append(headers)
+
+    # Write data rows
+    for user_story in sorted_user_stories:
+        sheet.append([
+            user_story["FormattedID"],
+            user_story["Name"],
+            user_story["ScheduleState"],
+            user_story["Owner"]
+        ])
+
+    # Save the Excel file
+    workbook.save(OUTPUT_EXCEL_FILE)
+
+    print(f"\nResults exported to Excel file: {OUTPUT_EXCEL_FILE}")
+
+except Exception as e:
+    print(f"Failed to connect to Rally or retrieve/export user stories: {e}")
